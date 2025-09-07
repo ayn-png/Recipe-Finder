@@ -1,7 +1,8 @@
 Enhanced Recipe Finder 🍳
 A sleek, modern, and fully responsive web application for discovering new recipes. Built with a focus on a clean user experience, smooth animations, and a beautiful UI.
 
-➡️ Live Demo Link Here : 
+➡️ Live Demo Link Here : https://recipe-finder-silk-phi.vercel.app/
+
 A preview of the Recipe Finder application in action.
 
 📖 About The Project
