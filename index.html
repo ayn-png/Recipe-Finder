@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Finder</title>
+
+    <!-- FEVICON -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍳</text></svg>">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb; /* bg-gray-50 */
+            background-image: radial-gradient(circle at top, rgba(251, 191, 36, 0.08), transparent 50%);
+            background-repeat: no-repeat;
+        }
+        /* Modal transition */
+        .modal {
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal-content {
+             transition: transform 0.3s ease;
+        }
+        
+        /* Animation for recipe cards appearing */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <!-- Header & Search Section -->
+        <header class="text-center my-8 md:my-12">
+            <h1 class="text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-600">
+                Recipe Finder
+            </h1>
+            <p class="text-gray-600 mt-3 text-lg">Find your next favorite meal.</p>
+            
+            <form id="search-form" class="mt-10 max-w-2xl mx-auto flex items-center shadow-lg rounded-full bg-white transition-shadow duration-300 focus-within:shadow-xl">
+                <div class="relative w-full">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-5 pointer-events-none">
+                        <!-- Inline SVG for search icon -->
+                        <svg class="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                        </svg>
+                    </div>
+                    <input type="text" id="search-input" class="w-full p-4 pl-14 text-lg border-none rounded-full focus:ring-0 bg-transparent" placeholder="Search for chicken, beef, pasta...">
+                </div>
+                <button type="submit" class="m-2 px-6 py-3 bg-amber-500 text-white font-semibold rounded-full hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all duration-300 transform hover:scale-105">Search</button>
+            </form>
+        </header>
+
+        <!-- Results Display Area -->
+        <main id="results-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 my-12">
+            <!-- Initial Message -->
+            <div id="initial-message" class="col-span-full text-center text-gray-500">
+                <div class="bg-white p-8 rounded-xl shadow-sm">
+                    <h2 class="text-2xl font-semibold text-gray-700">What do you want to cook today? 🍳</h2>
+                    <p>Start by searching for an ingredient or a dish name.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Recipe Detail Modal -->
+    <div id="recipe-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 invisible opacity-0">
+        <div id="modal-content-container" class="modal-content bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto transform scale-95">
+            <!-- Modal content will be injected by JavaScript -->
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="text-center py-6 border-t border-gray-200">
+        <p class="text-gray-500">Powered by <a href="https://www.themealdb.com/" target="_blank" class="text-amber-600 hover:underline">TheMealDB API</a>.</p>
+        <p class="text-gray-400 text-sm mt-1">Designed & Built for You.</p>
+    </footer>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const searchForm = document.getElementById('search-form');
+            const searchInput = document.getElementById('search-input');
+            const resultsGrid = document.getElementById('results-grid');
+            const initialMessage = document.getElementById('initial-message');
+            const recipeModal = document.getElementById('recipe-modal');
+            const modalContentContainer = document.getElementById('modal-content-container');
+
+            const API_SEARCH_URL = 'https://www.themealdb.com/api/json/v1/1/search.php?s=';
+            const API_LOOKUP_URL = 'https://www.themealdb.com/api/json/v1/1/lookup.php?i=';
+
+            // --- Event Listeners ---
+            searchForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const query = searchInput.value.trim();
+                if (query) {
+                    searchRecipes(query);
+                }
+            });
+
+            resultsGrid.addEventListener('click', (e) => {
+                const card = e.target.closest('.recipe-card');
+                if (card) {
+                    const mealId = card.dataset.mealId;
+                    getRecipeDetails(mealId);
+                }
+            });
+            
+            recipeModal.addEventListener('click', (e) => {
+                if (e.target.id === 'recipe-modal' || e.target.closest('.close-modal-btn')) {
+                    closeModal();
+                }
+            });
+
+            // --- API Functions ---
+            async function searchRecipes(query) {
+                showLoadingState();
+                try {
+                    const response = await fetch(`${API_SEARCH_URL}${query}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+                    displayRecipes(data.meals);
+                } catch (error) {
+                    showErrorState('Failed to fetch recipes. Please check your connection.');
+                    console.error('Fetch error:', error);
+                }
+            }
+            
+            async function getRecipeDetails(mealId) {
+                modalContentContainer.innerHTML = getModalSpinnerHTML();
+                openModal();
+                try {
+                    const response = await fetch(`${API_LOOKUP_URL}${mealId}`);
+                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+                    if (data.meals && data.meals.length > 0) {
+                        displayRecipeDetails(data.meals[0]);
+                    }
+                } catch (error) {
+                     modalContentContainer.innerHTML = `<p class="p-8 text-center text-red-600">Could not load recipe details. Please try again later.</p>`;
+                     console.error('Fetch detail error:', error);
+                }
+            }
+
+            // --- UI Update Functions ---
+            function displayRecipes(meals) {
+                resultsGrid.innerHTML = ''; // Clear previous results
+                if (!meals) {
+                    showNoResultsState();
+                    return;
+                }
+
+                meals.forEach((meal, index) => {
+                    const card = document.createElement('div');
+                    card.classList.add('recipe-card', 'bg-white', 'rounded-xl', 'shadow-md', 'overflow-hidden', 'cursor-pointer', 'transition-all', 'duration-300', 'hover:shadow-2xl', 'hover:-translate-y-2', 'fade-in', 'group');
+                    card.dataset.mealId = meal.idMeal;
+                    card.style.opacity = '0'; // Start invisible for animation
+                    card.style.animationDelay = `${index * 100}ms`;
+
+                    card.innerHTML = `
+                        <div class="relative">
+                            <img src="${meal.strMealThumb}" alt="${meal.strMeal}" class="w-full h-56 object-cover">
+                            <div class="absolute inset-0 bg-black bg-opacity-20 group-hover:bg-opacity-40 transition-all duration-300"></div>
+                        </div>
+                        <div class="p-5">
+                            <h3 class="font-bold text-xl text-gray-800 truncate">${meal.strMeal}</h3>
+                             <span class="inline-block bg-amber-100 text-amber-800 text-sm font-semibold mt-2 px-3 py-1 rounded-full">${meal.strCategory}</span>
+                             <p class="text-amber-600 font-semibold mt-4 group-hover:underline">View Recipe &rarr;</p>
+                        </div>
+                    `;
+                    resultsGrid.appendChild(card);
+                });
+            }
+
+            function displayRecipeDetails(meal) {
+                const ingredients = [];
+                for (let i = 1; i <= 20; i++) {
+                    const ingredient = meal[`strIngredient${i}`];
+                    const measure = meal[`strMeasure${i}`];
+                    if (ingredient && ingredient.trim() !== '') {
+                        ingredients.push(`<li class="flex items-start"><span class="bg-amber-100 text-amber-800 text-xs font-bold mr-3 px-2 py-1 rounded-full">${measure.trim()}</span> ${ingredient}</li>`);
+                    }
+                }
+                
+                modalContentContainer.innerHTML = `
+                    <div class="relative">
+                         <button class="close-modal-btn absolute top-4 right-4 text-gray-400 hover:text-gray-800 bg-white/50 backdrop-blur-sm rounded-full p-2 z-10">
+                            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                        <div class="p-6 sm:p-8">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                                <img src="${meal.strMealThumb}" alt="${meal.strMeal}" class="w-full h-auto rounded-xl shadow-lg object-cover">
+                                <div class="flex flex-col">
+                                    <h2 class="text-4xl font-extrabold text-gray-800 mb-4">${meal.strMeal}</h2>
+                                    ${meal.strYoutube ? `<a href="${meal.strYoutube}" target="_blank" class="inline-flex items-center gap-2 mb-4 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors w-max"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>Watch on YouTube</a>` : ''}
+                                    
+                                    <h3 class="text-2xl font-bold mb-3 text-gray-700 border-b pb-2">Ingredients</h3>
+                                    <ul class="space-y-2 text-gray-600 mb-6 pl-2">
+                                        ${ingredients.join('')}
+                                    </ul>
+                                </div>
+                            </div>
+                             <div class="mt-6">
+                                <h3 class="text-2xl font-bold mb-3 text-gray-700 border-b pb-2">Instructions</h3>
+                                <p class="text-gray-600 whitespace-pre-wrap leading-relaxed">${meal.strInstructions}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // --- State Handling ---
+            function showLoadingState() {
+                if(initialMessage) initialMessage.style.display = 'none';
+                resultsGrid.innerHTML = `
+                    <div class="col-span-full text-center text-gray-500 flex flex-col items-center justify-center space-y-2 p-8">
+                        <svg class="animate-spin h-8 w-8 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-lg font-semibold text-gray-600">Searching for recipes...</span>
+                    </div>
+                `;
+            }
+
+            function showNoResultsState() {
+                 resultsGrid.innerHTML = `
+                    <div class="col-span-full text-center text-gray-500 bg-white p-8 rounded-xl shadow-sm">
+                        <h2 class="text-2xl font-semibold text-gray-700">No recipes found 😥</h2>
+                        <p>Please try searching for a different ingredient or dish.</p>
+                    </div>
+                `;
+            }
+            
+            function showErrorState(message) {
+                 resultsGrid.innerHTML = `
+                    <div class="col-span-full text-center text-red-600 bg-red-50 p-6 rounded-xl shadow-sm">
+                        <h2 class="text-xl font-semibold">An Error Occurred</h2>
+                        <p>${message}</p>
+                    </div>
+                `;
+            }
+            
+            function getModalSpinnerHTML() {
+                return `
+                <div class="flex items-center justify-center p-20">
+                     <svg class="animate-spin h-10 w-10 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+                `;
+            }
+            
+            // --- Modal Control ---
+            function openModal() {
+                recipeModal.classList.remove('invisible', 'opacity-0');
+                modalContentContainer.classList.remove('scale-95');
+                document.body.style.overflow = 'hidden'; // Prevent background scrolling
+            }
+
+            function closeModal() {
+                recipeModal.classList.add('invisible', 'opacity-0');
+                modalContentContainer.classList.add('scale-95');
+                document.body.style.overflow = '';
+            }
+        });
+    </script>
+</body>
+</html>
+
+
